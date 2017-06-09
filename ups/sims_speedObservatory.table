@@ -1,0 +1,9 @@
+setupRequired(base)
+setupRequired(numpy)
+setupRequired(sims_utils)
+setupRequired(sims_featureScheduler)
+setupRequired(sims_skybrightness_pre)
+setupRequired(ephem)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envPrepend(PATH, ${PRODUCT_DIR}/bin)
