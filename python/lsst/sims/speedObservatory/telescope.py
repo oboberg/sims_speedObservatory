@@ -4,6 +4,76 @@ import numpy as np
 __all__ = ["Telescope"]
 
 class Telescope:
+    """This class provides a kinematic model of the telescope
+
+    The functionality provided is currently (June 18 2017) limited to
+    calculating slew times. Putting the code into a class allows a
+    simulator to consider many `Telescope`s at once, each with
+    different parameters.
+
+    Attributes
+    ----------
+    latitude : float
+        The latitude of the telescope in radians. This attribute should not
+        be changed on Telescope instances, since lsst.sims.speedObservatory.sky
+        assumes the default value.
+    longitude : float
+        The longitude of the telescope in radians. This attribute should not
+        be changed on Telescope instances, since lsst.sims.speedObservatory.sky
+    filters : list of str
+        The filters available on this telescope. This attribute should not
+        be modified on instances.
+    filterId : dict (keys are str, values are int)
+        An integer ID assigned to each filter. This attribute should not
+        be modified on instances.
+    fovWidth : float
+        The width of the field of view in radians.
+    domSlitDiam : float
+        The width of the dome slit in radians. TODO this assumes a circular
+        dome slit, but I think it may actually be rectangular.
+    raftWidth : float
+        The width of a single raft in radians.
+    minRotation : float
+        The minimum angle of the rotator in radians.
+    maxRotation : float
+        The maximum angle of the rotator in radians.
+    maxAlt : float
+        The maximum altitude that the telescope can point at in radians.
+    domAltMaxSpeed : float
+        The maximum rate of change in dome altitude in radians/s.
+    domAltAccel : float
+        The maximum acceleration in dome altitude in radians/s/s.
+    domAltDecel : float
+        The maximum deceleration in dome altitude in radians/s/s.
+    domAzMaxSpeed : float
+        The maximum rate of change in dome azimuth in radians/s.
+    domAzAccel : float
+        The maximum acceleration in dome azimuth in radians/s/s.
+    domAzDecel : float
+        The maximum deceleration in dome azimuth in radians/s/s.
+    telAltMaxSpeed : float
+        The maximum rate of change in telescope altitude in radians/s.
+    telAltAccel : float
+        The maximum acceleration in telescope altitude in radians/s/s.
+    telAltDecel : float
+        The maximum deceleration in telescope altitude in radians/s/s.
+    telAzMaxSpeed : float
+        The maximum rate of change in telescope azimuth in radians/s.
+    telAzAccel : float
+        The maximum acceleration in telescope azimuth in radians/s/s.
+    telAzDecel : float
+        The maximum deceleration in telescope azimuth in radians/s/s.
+    rotMaxSpeed : float
+        The maximum rate of change in rotator in radians/s.
+    rotAccel : float
+        The maximum acceleration of the rotator in radians/s/s.
+    rotDecel : float
+        The maximum deceleration of the rotator in radians/s/s.
+    settleTime : float
+        The number of seconds it takes for the instrument to settle.
+    filterChangeTime : float
+        The number of seconds it takes to change filters.
+    """
     # non-configurable (AstronomicalSky uses these and I don't
     # want to slow it down by requiring it create a Telescope object)
     # (don't modify these on an instance)
@@ -49,14 +119,46 @@ class Telescope:
         assert(self.telAzAccel == self.telAzDecel)
 
         # not used in slew calculation
-        self.Rotator_MaxSpeed = np.radians(3.5)
-        self.Rotator_Accel = np.radians(1.0)
-        self.Rotator_Decel = np.radians(1.0)
+        self.rotMaxSpeed = np.radians(3.5)
+        self.rotAccel = np.radians(1.0)
+        self.rotDecel = np.radians(1.0)
 
         self.settleTime = 3
         self.filterChangeTime = 120
 
     def calcSlewTime(self, alt1, az1, filter1, alt2, az2, filter2):
+        """Calculates ``slew'' time
+
+        Calculates the ``slew'' time necessary to get from alt1/az1/filter1
+        to alt2/az2/filter2. The time returned is actually the time between
+        the end of an exposure at alt1/az1 and the beginning of an exposure
+        at alt2/az2, since it includes readout time in the ``slew'' time.
+
+        Parameters
+        ----------
+        alt1 : float
+            The altitude of the initial pointing.
+        az1 : float
+            The azimuth of the initial pointing.
+        filter1 : str
+            The filter used in the initial observation.
+        alt2 : float
+            The altitude of the destination pointing.
+        az2 : float
+            The azimuth of the destination pointing.
+        filter2 : str
+            The filter to be used in the destination observation.
+
+        Returns
+        -------
+        The number of seconds between the two specified exposures.
+
+        Notes
+        -----
+        This method should really be called `calcInterExposureTime`, but to be
+        consistent with other code/documentation, I've called it `calcSlewTime`.
+        """
+
         # FYI this takes on the order of 10us for 1 slew calculation
 
         # TODO also assumes we never max out the cable wrap-around constraint

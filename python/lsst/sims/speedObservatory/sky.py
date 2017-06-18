@@ -17,73 +17,228 @@ __all__ = ["nightLength", "nightStart", "nightEnd", "nightNum",
            "raOfMeridian", "phaseOfMoon", "getExpTime", "unix2lst", 
            "radec2altaz", "altaz2radec"]
 
+# set up an observer to calculate sun rising/setting times
 tel = ephem.Observer()
+
+# this uses the default longitude and latitude values for the telescope.
+# The alternative is to have methods take a Telescope object, which would
+# allow lon/lat to be configurable, but the fewer arguments the better,
+# and it seems unlikely that we'll need to try out different lon/lats
 tel.lat = Telescope.latitude
 tel.lon = Telescope.longitude
-tel.horizon = "-12:00:00" # start observing when sun is 12 deg below horizon
+# start observing when sun is 12 deg below horizon
+tel.horizon = "-12:00:00"
 sun = ephem.Sun()
 
-starts = {}
-ends = {}
+# cache night starts and ends since ephem.next_rising()/setting() are slow
+nightStarts = {}
+nightEnds = {}
 
 
 def nightLength(surveyStartTime, nightNum):
+    """Finds the length of the `nightNum`th night after `surveyStartTime`
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    nightNum : int
+        The number (0 indexed) of nights after the start of the survey
+        to get the night length of.
+
+    Returns
+    -------
+    The length of the night (in seconds) that starts `nightNum` days after
+    the day during which surveyStartTime falls.
+    """
     return nightEnd(surveyStartTime, nightNum) - nightStart(surveyStartTime, nightNum)
 
 def nightStart(surveyStartTime, nightNum):
+    """Gives the start time of the `nightNum`th night
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    nightNum : int
+        The number (0 indexed) of nights after the start of the survey
+        whose start time is desired. Note that the 0th night starts in the
+        evening of whatever day `surveyStartTime` falls on.
+
+    Returns
+    -------
+    The start time (as a unix timestamp) of the `nightNum`th night
+    """
+
+    # use this (and the corresponding line in nightEnd) to return
+    # constant-length nights (good for debugging)
     #return surveyStartTime + nightNum * 3600*24
-    if (surveyStartTime, nightNum) in starts:
-        return starts[(surveyStartTime, nightNum)]
+
+    # check if we already know when this night starts
+    if (surveyStartTime, nightNum) in nightStarts:
+        return nightStarts[(surveyStartTime, nightNum)]
+
+    # get the next setting after midnight on nightNum days after surveyStartTime
     startDate = datetime.fromtimestamp(surveyStartTime)
     startDate = startDate.replace(hour=12, minute=0, second=0)
     curDate = startDate + timedelta(nightNum)
     dublinJD = tel.next_setting(sun, start=curDate)
-    mjd = dublinJD + 15019.5 # convert from dublin JD to modified JD
-    unix = (mjd - 40587) * 86400
-    starts[nightNum] = unix
+
+    # get the time as a unix timestamp
+    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+
+    # cache the result
+    nightStarts[nightNum] = unix
     return unix
 
 def nightEnd(surveyStartTime, nightNum):
+    """Gives the end time of the `nightNum`th night
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    nightNum : int
+        The number (0 indexed) of nights after the start of the survey
+        whose start time is desired. Note that the 0th night starts in the
+        evening of whatever day `surveyStartTime` falls on.
+
+    Returns
+    -------
+    The end time (as a unix timestamp) of the `nightNum`th night
+    """
+
+    # use this (and the corresponding line in nightStart) to return
+    # constant-length nights (good for debugging)
     #return surveyStartTime + nightNum * 3600*24 + 12 * 3600
-    if (surveyStartTime, nightNum) in ends:
-        return ends[(surveyStartTime, nightNum)]
+
+    # check if cached
+    if (surveyStartTime, nightNum) in nightEnds:
+        return nightEnds[(surveyStartTime, nightNum)]
+
+    # get the next setting after midnight on nightNum days after surveyStartTime
     startDate = datetime.fromtimestamp(surveyStartTime)
     startDate = startDate.replace(hour=12, minute=0, second=0)
     curDate = startDate + timedelta(nightNum)
     dublinJD = tel.next_rising(sun, start=curDate)
-    mjd = dublinJD + 15019.5 # convert from dublin JD to modified JD
-    unix = (mjd - 40587) * 86400
-    ends[nightNum] = unix
+
+    # get the time as a unix timestamp
+    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+
+    # cache the result
+    nightEnds[nightNum] = unix
     return unix
 
 def nightNum(surveyStartTime, time):
+    """Gives the integer night number corresponding to `time`
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    time : float
+        The time whose night number we wish to calculate (as a unix timestamp)
+
+    Returns
+    -------
+    The number of nights after `surveyStartTime` that `time` falls in
+
+    Notes
+    -----
+    This function returns a night number even if `time` falls during the day.
+    """
     return int((time - surveyStartTime) / 3600 / 24)
 
 def raOfMeridian(time):
-    """
-    oneDay = 60 * 60 * 24
-    oneYear = oneDay * 365.25
+    """Gives the RA of the meridian at `time`
 
-    dayContribution = (time % oneDay) * 2*np.pi / oneDay 
-    yearContribution = (time % oneYear) * 2*np.pi / oneYear
-    return (dayContribution + yearContribution) % (2*np.pi)
+    Parameters
+    ----------
+    time : float
+        The time of interest
+
+    Returns
+    -------
+    The RA (in radians) of the meridian at `time` at the Telescope site.
     """
+    # get the RA of zenith
     ra, dec = altaz2radec(np.pi/2, 0., time)
     return ra
 
 def radecOfMoon(time):
+    """Gives the RA and declination of the moon at `time`
+
+    Parameters
+    ----------
+    time : float
+        The time of interest
+
+    Returns
+    -------
+    A tuple (RA, dec) representing the location of the moon at `time`.
+    """
+    # ephem needs djds
     moon = ephem.Moon(utils.mjd2djd(utils.unix2mjd(time)))
     return (moon.ra, moon.dec)
 
 def phaseOfMoon(time):
+    """Gives the phase of the moon at `time`
+
+    Parameters
+    ----------
+    time : float
+        The time of interest
+
+    Returns
+    -------
+    The phase of the moon (as a float between 0 and 1)
+    """
+    # ephem needs djds
     moon = ephem.Moon(utils.mjd2djd(utils.unix2mjd(time)))
     return moon.moon_phase
 
 def getExpTime(ra, dec, otherstuff = None):
+    """Gives the exposure time to use
+
+    TODO I put this method here because I was originally assuming that if
+    the exposure time were to vary, it would depend only on RA/dec and
+    therefore would be the responsibility of this module to calculate.
+    However there may be other reasons to vary exposure time, and if so,
+    it may be better if this module had (a) function(s) to return more general
+    information (like what region of the sky, or airmass, or seeing, etc)
+    that could be used by the scheduler to decide on exposure time.
+
+    Parameters
+    ----------
+    ra : float
+        The RA of the observation
+    dec : float
+        The declination of the observation
+    otherstuff : object
+        This is a placeholder
+
+    Returns
+    -------
+    The number of seconds that the shutter should stay open when pointing
+    at the supplied RA and dec
+    """
     return 30
 
 
 def unix2lst(longitude, time):
+    """Calculates the local sidereal time of the supplied time
+
+    Parameters
+    ----------
+    longitude : float
+        The longitude of the observatory in radians.
+    time : float
+        The time of interest as a unix timestamp.
+
+    Returns
+    -------
+    The local sidereal time (LST) at the given `longitude` and `time`.
+    """
     mjd = utils.unix2mjd(time)
     lst = palpy.gmst(mjd) + longitude
     lst %= 2*np.pi
@@ -105,7 +260,32 @@ def _checkCoordInput(coord1, coord2):
 
 
 def radec2altaz(ra, dec, time):
+    """Converts from RA/dec to altitude/azimuth
+
+    Patameters
+    ----------
+    ra : float
+        The RA of interest in radians.
+    dec : float
+        The declination of interest in radians.
+    time : float
+        The time of interest as a unix timestamp.
+
+    Returns
+    -------
+    The altitude and azimuth corresponding to the provided `ra` and `dec`.
+    The shapes of the returned values equal the shapes of the provided `ra`
+    and `dec`.
+
+    Notes
+    -----
+    As of this writing (June 18 2017), this method is a bottleneck in
+    performance of the scheduler that I (Daniel Rothchild) am writing.
+    Currently, the method takes about 16us to convert one ra/dec to alt/az.
+    """
+
     # inputs must be ndarrays of equal size or both floats
+    # this helper returns whether the inputs are numpy arrays or not
     isNumpy = _checkCoordInput(ra, dec)
 
     # code adapted from lsst-ts/ts_astrosky_model and lsst-ts/ts_dateloc
@@ -120,17 +300,28 @@ def radec2altaz(ra, dec, time):
     return alt, az
 
 def altaz2radec(alt, az, time):
-    """
-    #Same problem as radec2altaz (i.e. this method takes forever)...
-    t = datetime.utcfromtimestamp(time)
-    altaz = AltAz(location = Telescope.location, obstime = t, alt = alt * u.rad, az = az * u.rad)
-    radec = altaz.transform_to(ICRS)
-    astropyResults = np.vstack([radec.ra.rad, radec.dec.rad]).T
+    """Converts from altitude/azimuth to RA/dec
+
+    Patameters
+    ----------
+    alt : float
+        The altitude of interest in radians.
+    az : float
+        The azimuth of interest in radians.
+    time : float
+        The time of interest as a unix timestamp.
+
+    Returns
+    -------
+    The RA and dec corresponding to the provided `alt` and `az`.
+    The shapes of the returned values equal the shapes of the provided `alt`
+    and `az`.
     """
 
     # formulas from http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
     # TODO do this with palpy
 
+    # this helper returns whether the inputs are numpy arrays or not
     isNumpy = _checkCoordInput(alt, az)
     
     lst = unix2lst(Telescope.longitude, time)
@@ -149,6 +340,4 @@ def altaz2radec(alt, az, time):
         if cosHourAngle <= 0:
             hourAngle = np.pi - hourAngle
     ra = lst - hourAngle
-
-    #print "diff", np.degrees(astropyResults) - np.degrees(np.vstack([ra, dec]).T)
     return (ra, dec)
