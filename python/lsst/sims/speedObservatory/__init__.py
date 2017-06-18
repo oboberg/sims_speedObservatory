@@ -1,2 +1,2 @@
 from .speed_observatory import *
-from .slew_pre import *
+from .telescope import Telescope

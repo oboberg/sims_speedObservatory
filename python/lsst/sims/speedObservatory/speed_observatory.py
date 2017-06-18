@@ -273,8 +273,3 @@ class Speed_observatory(object):
         self.mjd = mjd
         self.night = self.mjd2night(mjd)
 
-
-
-
-
-
