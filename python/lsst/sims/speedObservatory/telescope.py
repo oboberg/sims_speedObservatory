@@ -71,6 +71,8 @@ class Telescope:
         The maximum deceleration of the rotator in radians/s/s.
     settleTime : float
         The number of seconds it takes for the instrument to settle.
+    readoutTime : float
+        The number of seconds it takes to read out an exposure from the camera.
     filterChangeTime : float
         The number of seconds it takes to change filters.
     """
@@ -124,6 +126,7 @@ class Telescope:
         self.rotDecel = np.radians(1.0)
 
         self.settleTime = 3
+        self.readoutTime = 2
         self.filterChangeTime = 120
 
     def calcSlewTime(self, alt1, az1, filter1, alt2, az2, filter2):
@@ -183,8 +186,6 @@ class Telescope:
                 slewTime = 2 * vmax / a + (d - vmax**2 / a) / vmax
             return slewTime
 
-        #print "Delta alt", np.degrees(deltaAlt)
-        #print "Delta az", np.degrees(deltaAz)
         telAltSlewTime = uamSlewTime(deltaAlt, self.telAltMaxSpeed, self.telAltAccel)
         telAzSlewTime  = uamSlewTime(deltaAz,  self.telAzMaxSpeed,  self.telAzAccel)
 
@@ -210,8 +211,6 @@ class Telescope:
 
             domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
             domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
-            #print "domAlt1", domAltSlewTime
-            #print "domAz1", domAzSlewTime
 
             totDomTime1 = max(domAltSlewTime, domAzSlewTime)
 
@@ -219,21 +218,45 @@ class Telescope:
             domDeltaAz  = deltaAz
             domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
             domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
-            #print "domAlt2", domAltSlewTime
-            #print "domAz2", domAzSlewTime
             totDomTime2 = max(domAltSlewTime, domAzSlewTime)
 
             totDomTime = min(totDomTime1, totDomTime2)
 
-        #print "slew alt/az", altSlewTime, azSlewTime
-        #print
-        #print "tel Alt", telAltSlewTime
-        #print "tel Az", telAzSlewTime
-        totTelTime = max(telAltSlewTime, telAzSlewTime) + self.settleTime
+        # XXX the above models a dome slit and dome creep. However, it appears that
+        # SOCS requires the dome to slew exactly to each field and settle in az
+        domAltSlewTime = uamSlewTime(deltaAlt, self.domAltMaxSpeed, self.domAltAccel)
+        domAzSlewTime  = uamSlewTime(deltaAz,  self.domAzMaxSpeed,  self.domAzAccel)
+        if domAzSlewTime > 0:
+            domAzSlewTime += 1 # dome takes 1 second to settle in az
+        # XXX end SOCS-similitude code
+
+        totDomTime = max(domAltSlewTime, domAzSlewTime)
+        totTelTime = max(telAltSlewTime, telAzSlewTime)
+
+        # open loop optics correction
+        olTime = deltaAlt / np.radians(3.5)
+        totTelTime += olTime
+
+        if totTelTime > 0:
+            # OL and settle can happen at the same time
+            totTelTime += max(0, self.settleTime - olTime)
+        # readout puts a floor on tel time
+        totTelTime = max(self.readoutTime, totTelTime)
+
         slewTime = max(totTelTime, totDomTime)
 
         # include filter change time if necessary
         if filter1 != filter2:
             slewTime = max(slewTime, self.filterChangeTime)
+
+        # closed loop optics correction
+        if deltaAlt >= np.radians(9):
+            if slewTime == domAzSlewTime:
+                # XXX more SOCS-similitude code
+                # I thought we can do closed loop w/o waiting for dome az settle
+                # so this would be += 19, but apparently not?
+                slewTime += 20
+            else:
+                slewTime += 20
 
         return slewTime
