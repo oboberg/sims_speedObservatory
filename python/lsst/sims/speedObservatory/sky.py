@@ -155,7 +155,7 @@ def raOfMeridian(time):
     Parameters
     ----------
     time : float
-        The time of interest
+        The time of interest as a unix timestamp.
 
     Returns
     -------
@@ -165,13 +165,28 @@ def raOfMeridian(time):
     ra, dec = altaz2radec(np.pi/2, 0., time)
     return ra
 
+def radecOfSun(time):
+    """Gives the RA and declination of the sun at `time`
+
+    Parameters
+    ----------
+    time : float
+        The time of interest as a unix timestamp.
+
+    Returns
+    -------
+    A tuple (RA, dec) representing the location of the sun at `time`.
+    """
+    sun = ephem.Sun(utils.mjd2djd(utils.unix2mjd(time)))
+    return (sun.ra, sun.dec)
+
 def radecOfMoon(time):
     """Gives the RA and declination of the moon at `time`
 
     Parameters
     ----------
     time : float
-        The time of interest
+        The time of interest as a unix timestamp.
 
     Returns
     -------
