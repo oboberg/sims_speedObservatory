@@ -307,11 +307,12 @@ def radec2altaz(ra, dec, time):
     lst = unix2lst(Telescope.longitude, time)
     ha = lst - ra
     if isNumpy:
-        az, alt = palpy.de2hVector(ha.flatten(), dec.flatten(), Telescope.latitude)
+        az, alt = palpy.de2hVector(ha.flatten().astype(float),
+                                   dec.flatten().astype(float), Telescope.latitude)
         alt = alt.reshape(ra.shape)
         az = az.reshape(ra.shape)
     else:
-        az, alt = palpy.de2h(ha, dec, Telescope.latitude)
+        az, alt = palpy.de2h(float(ha), float(dec), Telescope.latitude)
     return alt, az
 
 def altaz2radec(alt, az, time):
@@ -333,26 +334,18 @@ def altaz2radec(alt, az, time):
     and `az`.
     """
 
-    # formulas from http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
-    # TODO do this with palpy
-
     # this helper returns whether the inputs are numpy arrays or not
     isNumpy = _checkCoordInput(alt, az)
     
     lst = unix2lst(Telescope.longitude, time)
 
-    sin = np.sin
-    cos = np.cos
-    lat = Telescope.latitude
-    sinDec = sin(alt) * sin(lat) + cos(alt) * cos(lat) * cos(az)
-    dec = np.arcsin(sinDec)
-    sinHourAngle = -1 * sin(az) * cos(alt) / cos(dec)
-    cosHourAngle = (sin(alt) - sin(dec) * sin(lat)) / (cos(dec) * cos(lat))
-    hourAngle = np.arcsin(sinHourAngle)
     if isNumpy:
-        hourAngle[cosHourAngle <= 0] = np.pi - hourAngle[cosHourAngle <= 0]
+        ha, dec = palpy.dh2eVector(az.flatten().astype(float),
+                                   alt.flatten().astype(float), Telescope.latitude)
+        ha = ha.reshape(az.shape)
+        dec = dec.reshape(az.shape)
     else:
-        if cosHourAngle <= 0:
-            hourAngle = np.pi - hourAngle
-    ra = lst - hourAngle
-    return (ra, dec)
+        ha, dec = palpy.dh2e(float(az), float(alt), Telescope.latitude)
+
+    ra = lst - ha
+    return ra, dec
