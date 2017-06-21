@@ -129,7 +129,7 @@ class Telescope:
         self.readoutTime = 2
         self.filterChangeTime = 120
 
-    def calcSlewTime(self, alt1, az1, filter1, alt2, az2, filter2):
+    def calcSlewTime(self, alt1, az1, filter1, alt2, az2, filter2, laxDome=False):
         """Calculates ``slew'' time
 
         Calculates the ``slew'' time necessary to get from alt1/az1/filter1
@@ -151,6 +151,10 @@ class Telescope:
             The azimuth of the destination pointing.
         filter2 : str
             The filter to be used in the destination observation.
+        laxDome : boolean
+            If True, allow the dome to creep, model a dome slit, and don't
+            require the dome to settle in azimuth. If False, adhere to the way
+            SOCS calculates slew times (as of June 21 2017).
 
         Returns
         -------
@@ -188,49 +192,6 @@ class Telescope:
 
         telAltSlewTime = uamSlewTime(deltaAlt, self.telAltMaxSpeed, self.telAltAccel)
         telAzSlewTime  = uamSlewTime(deltaAz,  self.telAzMaxSpeed,  self.telAzAccel)
-
-        # if we can fit both exposures in the dome slit, do so
-        if deltaAlt**2 + deltaAz**2 < self.fovWidth**2:
-            totDomTime = 0
-        else:
-            # else, we take the minimum time from two options:
-            # 1. assume we line up alt in the center of the dome slit so we
-            #    minimize distance we have to travel in azimuth.
-            # 2. line up az in the center of the slit
-            # also assume:
-            # * that we start out going maxspeed for both alt and az
-            # * that we only just barely have to get the new field in the dome slit
-            #   in one direction, but that we have to center the field in the other
-            #   (which depends which of the two options used)
-            # * that we don't have to slow down until after the shutter starts opening
-            domDeltaAlt = deltaAlt
-
-            # on each side, we can start out with the dome shifted away from the
-            # center of the field by an amount domSlitRadius - fovRadius
-            domDeltaAz = deltaAz - 2 * (self.domSlitDiam/2 - self.fovWidth/2)
-
-            domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
-            domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
-
-            totDomTime1 = max(domAltSlewTime, domAzSlewTime)
-
-            domDeltaAlt = deltaAlt - 2 * (self.domSlitDiam/2 - self.fovWidth/2)
-            domDeltaAz  = deltaAz
-            domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
-            domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
-            totDomTime2 = max(domAltSlewTime, domAzSlewTime)
-
-            totDomTime = min(totDomTime1, totDomTime2)
-
-        # XXX the above models a dome slit and dome creep. However, it appears that
-        # SOCS requires the dome to slew exactly to each field and settle in az
-        domAltSlewTime = uamSlewTime(deltaAlt, self.domAltMaxSpeed, self.domAltAccel)
-        domAzSlewTime  = uamSlewTime(deltaAz,  self.domAzMaxSpeed,  self.domAzAccel)
-        if domAzSlewTime > 0:
-            domAzSlewTime += 1 # dome takes 1 second to settle in az
-        # XXX end SOCS-similitude code
-
-        totDomTime = max(domAltSlewTime, domAzSlewTime)
         totTelTime = max(telAltSlewTime, telAzSlewTime)
 
         # open loop optics correction
@@ -242,6 +203,54 @@ class Telescope:
             totTelTime += max(0, self.settleTime - olTime)
         # readout puts a floor on tel time
         totTelTime = max(self.readoutTime, totTelTime)
+
+        # now compute dome slew time
+        if laxDome:
+            # model dome creep, dome slit, and no azimuth settle
+
+            # if we can fit both exposures in the dome slit, do so
+            if deltaAlt**2 + deltaAz**2 < self.fovWidth**2:
+                totDomTime = 0
+            else:
+                # else, we take the minimum time from two options:
+                # 1. assume we line up alt in the center of the dome slit so we
+                #    minimize distance we have to travel in azimuth.
+                # 2. line up az in the center of the slit
+                # also assume:
+                # * that we start out going maxspeed for both alt and az
+                # * that we only just barely have to get the new field in the
+                #   dome slit in one direction, but that we have to center the
+                #   field in the other (which depends which of the two options used)
+                # * that we don't have to slow down until after the shutter
+                #   starts opening
+                domDeltaAlt = deltaAlt
+
+                # on each side, we can start out with the dome shifted away from
+                # the center of the field by an amount domSlitRadius - fovRadius
+                domDeltaAz = deltaAz - 2 * (self.domSlitDiam/2 - self.fovWidth/2)
+
+                domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
+                domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
+
+                totDomTime1 = max(domAltSlewTime, domAzSlewTime)
+
+                domDeltaAlt = deltaAlt - 2 * (self.domSlitDiam/2 - self.fovWidth/2)
+                domDeltaAz  = deltaAz
+                domAltSlewTime = domDeltaAlt / self.domAltMaxSpeed
+                domAzSlewTime  = domDeltaAz  / self.domAzMaxSpeed
+                totDomTime2 = max(domAltSlewTime, domAzSlewTime)
+
+                totDomTime = min(totDomTime1, totDomTime2)
+
+        else:
+            # the above models a dome slit and dome creep. However, it appears that
+            # SOCS requires the dome to slew exactly to each field and settle in az
+            domAltSlewTime = uamSlewTime(deltaAlt, self.domAltMaxSpeed, self.domAltAccel)
+            domAzSlewTime  = uamSlewTime(deltaAz,  self.domAzMaxSpeed,  self.domAzAccel)
+            if domAzSlewTime > 0:
+                domAzSlewTime += 1 # dome takes 1 second to settle in az
+            totDomTime = max(domAltSlewTime, domAzSlewTime)
+
 
         slewTime = max(totTelTime, totDomTime)
 
