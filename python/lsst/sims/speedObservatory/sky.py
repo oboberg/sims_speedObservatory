@@ -247,7 +247,7 @@ def unix2lst(longitude, time):
     ----------
     longitude : float
         The longitude of the observatory in radians.
-    time : float
+    time : float or np.ndarray
         The time of interest as a unix timestamp.
 
     Returns
@@ -255,7 +255,10 @@ def unix2lst(longitude, time):
     The local sidereal time (LST) at the given `longitude` and `time`.
     """
     mjd = utils.unix2mjd(time)
-    lst = palpy.gmst(mjd) + longitude
+    if isinstance(time, np.ndarray):
+        lst = palpy.gmstVector(mjd) + longitude
+    else:
+        lst = palpy.gmst(mjd) + longitude
     lst %= 2*np.pi
     return lst
 
