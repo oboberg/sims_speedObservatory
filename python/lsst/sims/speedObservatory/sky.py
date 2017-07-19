@@ -88,7 +88,7 @@ def nightStart(surveyStartTime, nightNum):
     unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
 
     # cache the result
-    nightStarts[nightNum] = unix
+    nightStarts[(surveyStartTime, nightNum)] = unix
     return unix
 
 def nightEnd(surveyStartTime, nightNum):
@@ -126,7 +126,7 @@ def nightEnd(surveyStartTime, nightNum):
     unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
 
     # cache the result
-    nightEnds[nightNum] = unix
+    nightEnds[(surveyStartTime, nightNum)] = unix
     return unix
 
 def nightNum(surveyStartTime, time):
