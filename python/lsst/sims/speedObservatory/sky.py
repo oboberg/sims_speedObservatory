@@ -15,7 +15,8 @@ import palpy
 
 __all__ = ["nightLength", "nightStart", "nightEnd", "nightNum", 
            "raOfMeridian", "phaseOfMoon", "getExpTime", "unix2lst", 
-           "radec2altaz", "altaz2radec"]
+           "radec2altaz", "altaz2radec", "radecOfSun", "radecOfMoon",
+           "twlightEnd", "twilightStart"]
 
 # set up an observer to calculate sun rising/setting times
 tel = ephem.Observer()
@@ -26,14 +27,24 @@ tel = ephem.Observer()
 # and it seems unlikely that we'll need to try out different lon/lats
 tel.lat = Telescope.latitude
 tel.lon = Telescope.longitude
-# start observing when sun is 12 deg below horizon
-tel.horizon = "-12:00:00"
+# true night starts when the sun is 18 deg below horizon
+tel.horizon = "-18:00:00"
+
+# set up another observer to calculate twilight start/end times
+twilTel = ephem.Observer()
+twilTel.lat = Telescope.latitude
+twilTel.lon = Telescope.longitude
+# twilight starts before true night -- when sun is at -12 degrees
+twilTel.horizon = "-12:00:00"
+
 sun = ephem.Sun()
 
-# cache night starts and ends since ephem.next_rising()/setting() are slow
+# cache night/twil starts and ends since ephem.next_rising()/setting() are slow
 nightStarts = {}
 nightEnds = {}
 
+twilEnds = {}
+twilStarts = {}
 
 def nightLength(surveyStartTime, nightNum):
     """Finds the length of the `nightNum`th night after `surveyStartTime`
@@ -49,12 +60,65 @@ def nightLength(surveyStartTime, nightNum):
     Returns
     -------
     The length of the night (in seconds) that starts `nightNum` days after
-    the day during which surveyStartTime falls.
+    the day during which surveyStartTime falls. This is the time between the
+    start of twilight and the end of twilight.
     """
-    return nightEnd(surveyStartTime, nightNum) - nightStart(surveyStartTime, nightNum)
+    return twilEnd(surveyStartTime, nightNum) - twilStart(surveyStartTime, nightNum)
+
+def _sunRiseTime(observer, surveyStartTime, nightNum):
+    # get the next setting after midnight on nightNum days after surveyStartTime
+    startDate = datetime.fromtimestamp(surveyStartTime)
+    startDate = startDate.replace(hour=12, minute=0, second=0)
+    curDate = startDate + timedelta(nightNum)
+    dublinJD = observer.next_rising(sun, start=curDate)
+
+    # get the time as a unix timestamp
+    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+    return unix
+
+def _sunSetTime(observer, surveyStartTime, nightNum):
+    # get the next setting after midnight on nightNum days after surveyStartTime
+    startDate = datetime.fromtimestamp(surveyStartTime)
+    startDate = startDate.replace(hour=12, minute=0, second=0)
+    curDate = startDate + timedelta(nightNum)
+    dublinJD = observer.next_setting(sun, start=curDate)
+
+    # get the time as a unix timestamp
+    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+
+    return unix
+
+
+def twilStart(surveyStartTime, nightNum):
+    """Gives the start time of the `nightNum`th night's twilight time
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    nightNum : int
+        The number (0 indexed) of nights after the start of the survey
+        whose start time is desired. Note that the 0th night starts in the
+        evening of whatever day `surveyStartTime` falls on.
+
+    Returns
+    -------
+    The start time (as a unix timestamp) of the `nightNum`th night's
+    twilight time
+    """
+
+
+    if (surveyStartTime, nightNum) in twilStarts:
+        return twilStarts[(surveyStartTime, nightNum)]
+
+    sunSetTime = _sunSetTime(twilTel, surveyStartTime, nightNum)
+
+    twilStarts[(surveyStartTime, nightNum)] = sunSetTime
+    return sunSetTime
+
 
 def nightStart(surveyStartTime, nightNum):
-    """Gives the start time of the `nightNum`th night
+    """Gives the start time of the `nightNum`th night dark time
 
     Parameters
     ----------
@@ -78,21 +142,14 @@ def nightStart(surveyStartTime, nightNum):
     if (surveyStartTime, nightNum) in nightStarts:
         return nightStarts[(surveyStartTime, nightNum)]
 
-    # get the next setting after midnight on nightNum days after surveyStartTime
-    startDate = datetime.fromtimestamp(surveyStartTime)
-    startDate = startDate.replace(hour=12, minute=0, second=0)
-    curDate = startDate + timedelta(nightNum)
-    dublinJD = tel.next_setting(sun, start=curDate)
-
-    # get the time as a unix timestamp
-    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+    sunSetTime = _sunSetTime(tel, surveyStartTime, nightNum)
 
     # cache the result
-    nightStarts[(surveyStartTime, nightNum)] = unix
-    return unix
+    nightStarts[(surveyStartTime, nightNum)] = sunSetTime
+    return sunSetTime
 
 def nightEnd(surveyStartTime, nightNum):
-    """Gives the end time of the `nightNum`th night
+    """Gives the end time of the `nightNum`th night dark time
 
     Parameters
     ----------
@@ -116,18 +173,37 @@ def nightEnd(surveyStartTime, nightNum):
     if (surveyStartTime, nightNum) in nightEnds:
         return nightEnds[(surveyStartTime, nightNum)]
 
-    # get the next setting after midnight on nightNum days after surveyStartTime
-    startDate = datetime.fromtimestamp(surveyStartTime)
-    startDate = startDate.replace(hour=12, minute=0, second=0)
-    curDate = startDate + timedelta(nightNum)
-    dublinJD = tel.next_rising(sun, start=curDate)
-
-    # get the time as a unix timestamp
-    unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
+    sunRiseTime = _sunRiseTime(tel, surveyStartTime, nightNum)
 
     # cache the result
-    nightEnds[(surveyStartTime, nightNum)] = unix
-    return unix
+    nightEnds[(surveyStartTime, nightNum)] = sunRiseTime
+    return sunRiseTime
+
+def twilEnd(surveyStartTime, nightNum):
+     """Gives the end time of the `nightNum`th night's twilight
+
+    Parameters
+    ----------
+    surveyStartTime : float
+        The time that the survey starts as a unix timestamp.
+    nightNum : int
+        The number (0 indexed) of nights after the start of the survey
+        whose start time is desired. Note that the 0th night starts in the
+        evening of whatever day `surveyStartTime` falls on.
+
+    Returns
+    -------
+    The end time (as a unix timestamp) of the `nightNum`th night's twilight
+    """
+
+   if (surveyStartTime, nightNum) in twilEnds:
+        return twilEnds[(surveyStartTime, nightNum)]
+
+    sunRiseTime = _sunRiseTime(twilTel, surveyStartTime, nightNum)
+
+    twilEnds[(surveyStartTime, nightNum)] = sunRiseTime
+    return sunRiseTime
+
 
 def nightNum(surveyStartTime, time):
     """Gives the integer night number corresponding to `time`
