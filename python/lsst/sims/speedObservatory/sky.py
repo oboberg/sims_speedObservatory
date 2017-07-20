@@ -196,8 +196,9 @@ def twilEnd(surveyStartTime, nightNum):
     The end time (as a unix timestamp) of the `nightNum`th night's twilight
     """
 
-   if (surveyStartTime, nightNum) in twilEnds:
+    if (surveyStartTime, nightNum) in twilEnds:
         return twilEnds[(surveyStartTime, nightNum)]
+
 
     sunRiseTime = _sunRiseTime(twilTel, surveyStartTime, nightNum)
 
