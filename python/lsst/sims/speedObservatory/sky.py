@@ -180,7 +180,7 @@ def nightEnd(surveyStartTime, nightNum):
     return sunRiseTime
 
 def twilEnd(surveyStartTime, nightNum):
-     """Gives the end time of the `nightNum`th night's twilight
+    """Gives the end time of the `nightNum`th night's twilight
 
     Parameters
     ----------
@@ -198,7 +198,6 @@ def twilEnd(surveyStartTime, nightNum):
 
     if (surveyStartTime, nightNum) in twilEnds:
         return twilEnds[(surveyStartTime, nightNum)]
-
 
     sunRiseTime = _sunRiseTime(twilTel, surveyStartTime, nightNum)
 
