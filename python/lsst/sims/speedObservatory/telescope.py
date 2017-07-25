@@ -37,6 +37,8 @@ class Telescope:
         The minimum angle of the rotator in radians.
     maxRotation : float
         The maximum angle of the rotator in radians.
+    minAlt : float
+        The minimum altitude that the telescope can point at in radians.
     maxAlt : float
         The maximum altitude that the telescope can point at in radians.
     domAltMaxSpeed : float
@@ -93,6 +95,7 @@ class Telescope:
         self.minRotation = -np.pi/2
         self.maxRotation = np.pi/2
 
+        self.minAlt = np.radians(30)
         # values from http://ops2.lsst.org/docs/current/system.html
         self.maxAlt = np.radians(86.5)
 
