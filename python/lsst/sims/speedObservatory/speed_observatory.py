@@ -7,7 +7,10 @@ import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
 from slew_pre import Slewtime_pre
-
+from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
+from lsst.sims.ocs.environment import SeeingModel
+from lsst.sims.ocs.configuration import Environment
+from lsst.sims.ocs.configuration.instrument import Filters
 
 __all__ = ['Speed_observatory']
 
@@ -17,6 +20,19 @@ default_nside = utils.set_default_nside()
 doff = ephem.Date(0)-ephem.Date('1858/11/17')
 
 
+class SeeingModel_no_time(SeeingModel):
+    """Eliminate the need to use a time_handler object
+    """
+    def __init__(self):
+        self.seeing_db = None
+        self.seeing_dates = None
+        self.seeing_values = None
+        self.environment_config = None
+        self.filters_config = None
+        self.seeing_fwhm_system_zenith = None
+        self.offset = 0
+
+
 class Speed_observatory(object):
     """
     A very very simple observatory model that will take observation requests and supply
@@ -24,7 +40,8 @@ class Speed_observatory(object):
     """
     def __init__(self, mjd_start=59580.035,
                  readtime=2., filtername=None, f_change_time=140.,
-                 nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.):
+                 nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
+                 seed=-1):
         """
         Parameters
         ----------
@@ -44,7 +61,10 @@ class Speed_observatory(object):
             The altitude limit for the sun (degrees)
         quickTest : bool (True)
             Load only a small pre-computed sky array rather than a full year.
+        seed : float
+            Random seed to potentially pass to unscheduled downtime
         """
+        self.mjd_start = mjd_start + 0
         self.mjd = mjd_start
         self.f_change_time = f_change_time
         self.readtime = readtime
@@ -81,6 +101,24 @@ class Speed_observatory(object):
 
         # Make a slewtime interpolator
         self.slew_interp = Slewtime_pre()
+
+        # Compute downtimes
+        self.down_nights = []
+        sdt = ScheduledDowntime()
+        sdt.initialize()
+        usdt = UnscheduledDowntime()
+        usdt.initialize(random_seed=seed)
+        for downtime in sdt.downtimes:
+            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
+        for downtime in usdt.downtimes:
+            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
+        self.down_nights.sort()
+
+        # Instatiate a seeing model
+        env_config = Environment()
+        filter_config = Filters()
+        self.seeing_model = SeeingModel_no_time()
+        self.seeing_model.initialize(env_config, filter_config)
 
     def slew_time(self, alt, az, mintime=2.):
         """
@@ -125,9 +163,12 @@ class Speed_observatory(object):
         result['skybrightness'] = self.sky.returnMags(self.mjd)
         result['slewtimes'] = self.slewtime_map()
         result['airmass'] = self.sky.returnAirmass(self.mjd)
-        # XXX Obviously need to update to a real seeing table, and make it a full-sky map, and filter, airmass dependent
-        result['FWHMeff'] = np.empty(result['airmass'].size)  # arcsec
-        result['FWHMeff'].fill(0.7)
+        for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
+            delta_t = (self.mjd-self.mjd_start)*24.*3600.
+            fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
+                                                                                          result['airmass'])
+            result['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
+            result['FWHM_geometric_%s' % filtername] = fwhm_geometric
         result['filter'] = self.filtername
         result['RA'] = self.ra
         result['dec'] = self.dec
@@ -141,9 +182,17 @@ class Speed_observatory(object):
         """
         If an mjd is not in daytime or downtime
         """
+
+        # Check if self.sky.info has night info, otherwise add it.
+        if 'night' not in self.sky.info.keys():
+            self.sky.info['night'] = self.mjd2night(self.sky.info['mjds'])
+            self.good_nights = np.in1d(self.sky.info['night'], self.down_nights, invert=True)
+
+        # Check if sun is up
         sunMoon = self.sky.returnSunMoon(mjd)
-        if sunMoon['sunAlt'] > self.sun_limit:
-            good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit))[0]
+        if (sunMoon['sunAlt'] > self.sun_limit) | (self.mjd2night(mjd) in self.down_nights):
+            good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit) &
+                            (self.good_nights))[0]
             if np.size(good) == 0:
                 # hack to advance if we are at the end of the mjd list I think
                 mjd += 0.25
@@ -201,7 +250,8 @@ class Speed_observatory(object):
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
             observation['skybrightness'] = self.status['skybrightness'][self.filtername][hpid]
-            observation['FWHMeff'] = self.status['FWHMeff'][hpid]
+            observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
+            observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
             observation['airmass'] = self.status['airmass'][hpid]
             return observation
         else:
@@ -243,6 +293,7 @@ class Speed_observatory(object):
         self.setting_sun_mjds = setting[indx]
         left = np.searchsorted(self.setting_sun_mjds, mjd_start)
         self.setting_sun_mjds = self.setting_sun_mjds[left:]
+        self.setting_sun_nights = self.mjd2night(self.setting_sun_mjds)
 
     def next_twilight_start(self, mjd, twi_limit=-18.):
         # find the next rising twilight. String to make it degrees I guess?
