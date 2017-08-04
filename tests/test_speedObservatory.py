@@ -24,6 +24,9 @@ class TestSpeedObs(unittest.TestCase):
 
         assert(status2['mjd'] > status['mjd'])
 
+        obs['dec'] = np.radians(-35.)
+        result = so.observe(obs)
+
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
     pass
