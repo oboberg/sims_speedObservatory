@@ -11,6 +11,7 @@ class Slewtime_pre(object):
     """Calculate the slewtime from a pre-computed grid
     """
     def __init__(self):
+        # XXX--need to move this out of featureScheduler!!!
         path = getPackageDir('sims_featureScheduler')
         datafile = os.path.join(path, 'python/lsst/sims/featureScheduler/observatory/pre_slewtimes.npz')
         data = np.load(datafile)
@@ -41,7 +42,6 @@ class Slewtime_pre(object):
         Slewtimes in seconds. Includes a minimum of 2 seconds because it assumes there was a
         readout started right before slew. Currently does not worry about camera rotation.
         """
-
         result = np.empty((2, np.size(alt2)))
         result[0, :] = self.alt_interpolator(alt1, alt2, grid=False)
         result[1, :] = self.az_interpolator(az1, az2, grid=False)
