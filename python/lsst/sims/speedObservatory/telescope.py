@@ -95,8 +95,8 @@ class Telescope:
         self.minRotation = -np.pi/2
         self.maxRotation = np.pi/2
 
-        self.minAlt = np.radians(30)
         # values from http://ops2.lsst.org/docs/current/system.html
+        self.minAlt = np.radians(20.0)
         self.maxAlt = np.radians(86.5)
 
         # Kinematic and delay parameters for slew time computation
