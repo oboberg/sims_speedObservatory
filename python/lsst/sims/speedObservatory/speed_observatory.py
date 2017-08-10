@@ -257,7 +257,8 @@ class Speed_observatory(object):
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
-            observation['skybrightness'] = self.status['skybrightness'][self.filtername][hpid]
+            observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=hpid,
+                                                               extrapolate=True)[self.filtername]
             observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
             observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
             observation['airmass'] = self.status['airmass'][hpid]
