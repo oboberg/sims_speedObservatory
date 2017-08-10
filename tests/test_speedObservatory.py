@@ -2,7 +2,7 @@ import numpy as np
 import unittest
 import lsst.sims.speedObservatory as speedo
 import lsst.utils.tests
-from lsst.sims.featureScheduler import  empty_observation
+from lsst.sims.featureScheduler import empty_observation
 
 
 class TestSpeedObs(unittest.TestCase):
@@ -26,6 +26,8 @@ class TestSpeedObs(unittest.TestCase):
 
         obs['dec'] = np.radians(-35.)
         result = so.observe(obs)
+
+        assert(result['airmass'] >= 1.)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

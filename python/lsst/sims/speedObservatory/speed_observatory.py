@@ -11,6 +11,7 @@ from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
 from lsst.sims.ocs.environment import SeeingModel
 from lsst.sims.ocs.configuration import Environment
 from lsst.sims.ocs.configuration.instrument import Filters
+from lsst.sims.utils import m5_flat_sed
 
 __all__ = ['Speed_observatory']
 
@@ -23,14 +24,20 @@ doff = ephem.Date(0)-ephem.Date('1858/11/17')
 class SeeingModel_no_time(SeeingModel):
     """Eliminate the need to use a time_handler object
     """
-    def __init__(self):
+    def __init__(self, offset=0.):
+        """
+        Parameters
+        ----------
+        offset : float
+            XXX-I don't even know the units on this. Days maybe?
+        """
         self.seeing_db = None
         self.seeing_dates = None
         self.seeing_values = None
         self.environment_config = None
         self.filters_config = None
         self.seeing_fwhm_system_zenith = None
-        self.offset = 0
+        self.offset = offset
 
 
 class Speed_observatory(object):
@@ -208,15 +215,15 @@ class Speed_observatory(object):
         """
         # If we were in a parked position, assume no time lost to slew, settle, filter change
         observation = observation_in.copy()
+        alt, az = utils.stupidFast_RaDec2AltAz(np.array([observation['RA']]),
+                                               np.array([observation['dec']]),
+                                               self.obs.lat, self.obs.lon, self.mjd)
         if self.ra is not None:
             if self.filtername != observation['filter']:
                 ft = self.f_change_time
                 st = 0.
             else:
                 ft = 0.
-                alt, az = utils.stupidFast_RaDec2AltAz(np.array([observation['RA']]),
-                                                       np.array([observation['dec']]),
-                                                       self.obs.lat, self.obs.lon, self.mjd)
                 st = self.slew_time(alt, az)
         else:
             st = 0.
@@ -236,16 +243,17 @@ class Speed_observatory(object):
                 update_status = False
             # This should be the start of the exposure.
             observation['mjd'] = self.mjd + (ft + st)*sec2days
-            observation['night'] = self.night
-            # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
-            observation['slewtime'] = ft+st+rt
-            self.mjd = self.mjd + total_time
-            self.night = self.mjd2night(self.mjd)
-            self.ra = observation['RA']
-            self.dec = observation['dec']
+            self.set_mjd(self.mjd + (ft + st)*sec2days)
             if update_status:
                 # What's the name for temp variables?
                 status = self.return_status()
+
+            observation['night'] = self.night
+            # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
+            observation['slewtime'] = ft+st+rt
+
+            self.ra = observation['RA']
+            self.dec = observation['dec']
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
@@ -253,6 +261,16 @@ class Speed_observatory(object):
             observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
             observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
             observation['airmass'] = self.status['airmass'][hpid]
+            observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0],
+                                                        observation['skybrightness'],
+                                                        observation['FWHMeff'],
+                                                        observation['exptime'],
+                                                        observation['airmass'])
+            observation['alt'] = alt
+            observation['az'] = az
+
+            self.set_mjd(self.mjd + total_time - (ft + st)*sec2days)
+
             return observation
         else:
             self.mjd = jump_mjd
