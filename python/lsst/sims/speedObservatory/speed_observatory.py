@@ -209,7 +209,7 @@ class Speed_observatory(object):
         else:
             return True, mjd
 
-    def observe(self, observation_in, indx=None):
+    def attempt_observe(self, observation_in, indx=None):
         """
         Check an observation, if there is enough time, execute it and return it, otherwise, return None.
         """

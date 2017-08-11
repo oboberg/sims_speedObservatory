@@ -12,8 +12,8 @@ class Slewtime_pre(object):
     """
     def __init__(self):
         # XXX--need to move this out of featureScheduler!!!
-        path = getPackageDir('sims_featureScheduler')
-        datafile = os.path.join(path, 'python/lsst/sims/featureScheduler/observatory/pre_slewtimes.npz')
+        path = getPackageDir('sims_speedObservatory')
+        datafile = os.path.join(path, 'python/lsst/sims/speedObservatory/pre_slewtimes.npz')
         data = np.load(datafile)
         alt_array = data['alt_array'].copy()
         az_array = data['az_array'].copy()
