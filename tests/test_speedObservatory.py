@@ -18,14 +18,14 @@ class TestSpeedObs(unittest.TestCase):
         obs['filter'] = 'r'
         obs['exptime'] = 30.
         obs['nexp'] = 2.
-        result = so.observe(obs)
+        result = so.attempt_observe(obs)
 
         status2 = so.return_status()
 
         assert(status2['mjd'] > status['mjd'])
 
         obs['dec'] = np.radians(-35.)
-        result = so.observe(obs)
+        result = so.attempt_observe(obs)
 
         assert(result['airmass'] >= 1.)
 
