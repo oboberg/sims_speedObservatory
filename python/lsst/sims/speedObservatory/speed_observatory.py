@@ -197,7 +197,14 @@ class Speed_observatory(object):
 
         # Check if sun is up
         sunMoon = self.sky.returnSunMoon(mjd)
-        if (sunMoon['sunAlt'] > self.sun_limit) | (self.mjd2night(mjd) in self.down_nights):
+        sunUp = sunMoon['sunAlt'] > self.sun_limit
+        # Check if we are in downtime
+        downNight = self.mjd2night(mjd) in self.down_nights
+        # Check if it is cloudy XXX
+        cloudy = False
+        if (sunUp) | (downNight) | cloudy:
+            # Find the nextx timestep in the pre-computed sky brightness that might be good. Could still be
+            # cloudy
             good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit) &
                             (self.good_nights))[0]
             if np.size(good) == 0:
