@@ -358,9 +358,9 @@ def radec2altaz(ra, dec, time):
 
     Patameters
     ----------
-    ra : float
+    ra : float or np.ndarray
         The RA of interest in radians.
-    dec : float
+    dec : float or np.ndarray
         The declination of interest in radians.
     time : float
         The time of interest as a unix timestamp.
@@ -399,9 +399,9 @@ def altaz2radec(alt, az, time):
 
     Patameters
     ----------
-    alt : float
+    alt : float or np.ndarray
         The altitude of interest in radians.
-    az : float
+    az : float or np.ndarray
         The azimuth of interest in radians.
     time : float
         The time of interest as a unix timestamp.
