@@ -16,7 +16,7 @@ import palpy
 __all__ = ["nightLength", "nightStart", "nightEnd", "nightNum", 
            "raOfMeridian", "phaseOfMoon", "getExpTime", "unix2lst", 
            "radec2altaz", "altaz2radec", "radecOfSun", "radecOfMoon",
-           "twlightEnd", "twilightStart"]
+           "twilEnd", "twilStart"]
 
 # set up an observer to calculate sun rising/setting times
 tel = ephem.Observer()
