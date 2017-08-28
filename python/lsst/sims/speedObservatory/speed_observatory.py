@@ -6,7 +6,7 @@ import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
-from slew_pre import Slewtime_pre
+from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
 from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
 from lsst.sims.ocs.environment import SeeingModel
 from lsst.sims.ocs.configuration import Environment
