@@ -5,16 +5,14 @@ import ephem
 from datetime import datetime
 from datetime import timedelta
 import numbers
-import time
-
 import utils
 from telescope import Telescope
 
-from matplotlib import pyplot as plt
 import palpy
 
-__all__ = ["nightLength", "nightStart", "nightEnd", "nightNum", 
-           "raOfMeridian", "phaseOfMoon", "getExpTime", "unix2lst", 
+
+__all__ = ["nightLength", "nightStart", "nightEnd", "nightNum",
+           "raOfMeridian", "phaseOfMoon", "getExpTime", "unix2lst",
            "radec2altaz", "altaz2radec", "radecOfSun", "radecOfMoon",
            "twilEnd", "twilStart"]
 
@@ -46,6 +44,7 @@ nightEnds = {}
 twilEnds = {}
 twilStarts = {}
 
+
 def nightLength(surveyStartTime, nightNum):
     """Finds the length of the `nightNum`th night after `surveyStartTime`
 
@@ -65,6 +64,7 @@ def nightLength(surveyStartTime, nightNum):
     """
     return twilEnd(surveyStartTime, nightNum) - twilStart(surveyStartTime, nightNum)
 
+
 def _sunRiseTime(observer, surveyStartTime, nightNum):
     # get the next setting after midnight on nightNum days after surveyStartTime
     startDate = datetime.fromtimestamp(surveyStartTime)
@@ -75,6 +75,7 @@ def _sunRiseTime(observer, surveyStartTime, nightNum):
     # get the time as a unix timestamp
     unix = utils.mjd2unix(utils.djd2mjd(dublinJD))
     return unix
+
 
 def _sunSetTime(observer, surveyStartTime, nightNum):
     # get the next setting after midnight on nightNum days after surveyStartTime
@@ -107,7 +108,6 @@ def twilStart(surveyStartTime, nightNum):
     twilight time
     """
 
-
     if (surveyStartTime, nightNum) in twilStarts:
         return twilStarts[(surveyStartTime, nightNum)]
 
@@ -136,7 +136,7 @@ def nightStart(surveyStartTime, nightNum):
 
     # use this (and the corresponding line in nightEnd) to return
     # constant-length nights (good for debugging)
-    #return surveyStartTime + nightNum * 3600*24
+    # return surveyStartTime + nightNum * 3600*24
 
     # check if we already know when this night starts
     if (surveyStartTime, nightNum) in nightStarts:
@@ -147,6 +147,7 @@ def nightStart(surveyStartTime, nightNum):
     # cache the result
     nightStarts[(surveyStartTime, nightNum)] = sunSetTime
     return sunSetTime
+
 
 def nightEnd(surveyStartTime, nightNum):
     """Gives the end time of the `nightNum`th night dark time
@@ -167,7 +168,7 @@ def nightEnd(surveyStartTime, nightNum):
 
     # use this (and the corresponding line in nightStart) to return
     # constant-length nights (good for debugging)
-    #return surveyStartTime + nightNum * 3600*24 + 12 * 3600
+    # return surveyStartTime + nightNum * 3600*24 + 12 * 3600
 
     # check if cached
     if (surveyStartTime, nightNum) in nightEnds:
@@ -178,6 +179,7 @@ def nightEnd(surveyStartTime, nightNum):
     # cache the result
     nightEnds[(surveyStartTime, nightNum)] = sunRiseTime
     return sunRiseTime
+
 
 def twilEnd(surveyStartTime, nightNum):
     """Gives the end time of the `nightNum`th night's twilight
@@ -225,6 +227,7 @@ def nightNum(surveyStartTime, time):
     """
     return int((time - surveyStartTime) / 3600 / 24)
 
+
 def raOfMeridian(time):
     """Gives the RA of the meridian at `time`
 
@@ -241,6 +244,7 @@ def raOfMeridian(time):
     ra, dec = altaz2radec(np.pi/2, 0., time)
     return ra
 
+
 def radecOfSun(time):
     """Gives the RA and declination of the sun at `time`
 
@@ -255,6 +259,7 @@ def radecOfSun(time):
     """
     sun = ephem.Sun(utils.mjd2djd(utils.unix2mjd(time)))
     return (sun.ra, sun.dec)
+
 
 def radecOfMoon(time):
     """Gives the RA and declination of the moon at `time`
@@ -272,6 +277,7 @@ def radecOfMoon(time):
     moon = ephem.Moon(utils.mjd2djd(utils.unix2mjd(time)))
     return (moon.ra, moon.dec)
 
+
 def phaseOfMoon(time):
     """Gives the phase of the moon at `time`
 
@@ -287,6 +293,7 @@ def phaseOfMoon(time):
     # ephem needs djds
     moon = ephem.Moon(utils.mjd2djd(utils.unix2mjd(time)))
     return moon.moon_phase
+
 
 def getExpTime(ra, dec, otherstuff = None):
     """Gives the exposure time to use
@@ -337,6 +344,7 @@ def unix2lst(longitude, time):
         lst = palpy.gmst(mjd) + longitude
     lst %= 2*np.pi
     return lst
+
 
 def _checkCoordInput(coord1, coord2):
     # helper for use in radec2altaz and altaz2radec
@@ -394,6 +402,7 @@ def radec2altaz(ra, dec, time):
         az, alt = palpy.de2h(float(ha), float(dec), Telescope.latitude)
     return alt, az
 
+
 def altaz2radec(alt, az, time):
     """Converts from altitude/azimuth to RA/dec
 
@@ -415,7 +424,7 @@ def altaz2radec(alt, az, time):
 
     # this helper returns whether the inputs are numpy arrays or not
     isNumpy = _checkCoordInput(alt, az)
-    
+
     lst = unix2lst(Telescope.longitude, time)
 
     if isNumpy:
