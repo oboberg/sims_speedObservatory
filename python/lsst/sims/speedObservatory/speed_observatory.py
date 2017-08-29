@@ -8,7 +8,7 @@ import lsst.sims.featureScheduler.utils as utils
 import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
 from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
-from lsst.sims.ocs.environment import SeeingModel
+from lsst.sims.ocs.environment import SeeingModel, CloudModel
 from lsst.sims.ocs.configuration import Environment
 from lsst.sims.ocs.configuration.instrument import Filters
 from lsst.sims.utils import m5_flat_sed
@@ -40,6 +40,22 @@ class SeeingModel_no_time(SeeingModel):
         self.offset = offset
 
 
+class CloudModel_no_time(CloudModel):
+    """Eliminate the need to use a time_handler object
+    """
+    def __init__(self, offset=0.):
+        """Initialize the class.
+
+        Parameters
+        ----------
+        offset : float (0.)
+        """
+        self.cloud_db = None
+        self.cloud_dates = None
+        self.cloud_values = None
+        self.offset = offset
+
+
 class Speed_observatory(object):
     """
     A very very simple observatory model that will take observation requests and supply
@@ -48,7 +64,7 @@ class Speed_observatory(object):
     def __init__(self, mjd_start=59580.035,
                  readtime=2., filtername=None, f_change_time=140.,
                  nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
-                 seed=-1):
+                 seed=-1, cloud_limit=7., cloud_step=15.):
         """
         Parameters
         ----------
@@ -70,6 +86,10 @@ class Speed_observatory(object):
             Load only a small pre-computed sky array rather than a full year.
         seed : float
             Random seed to potentially pass to unscheduled downtime
+        cloud_limit : float (7)
+            Close dome for cloud values over this (traditionally measured in 8ths of the sky)
+        cloud_step : float (15.)
+            Minutes to close if clouds exceed cloud_limit
         """
         self.mjd_start = mjd_start + 0
         self.mjd = mjd_start
@@ -127,6 +147,11 @@ class Speed_observatory(object):
         self.seeing_model = SeeingModel_no_time()
         self.seeing_model.initialize(env_config, filter_config)
 
+        self.cloud_model = CloudModel_no_time()
+        self.cloud_model.initialize()
+        self.cloud_limit = cloud_limit
+        self.cloud_step = cloud_step /60./24.
+
     def slew_time(self, alt, az, mintime=2.):
         """
         Compute slew time to new ra, dec position
@@ -170,8 +195,9 @@ class Speed_observatory(object):
         result['skybrightness'] = self.sky.returnMags(self.mjd)
         result['slewtimes'] = self.slewtime_map()
         result['airmass'] = self.sky.returnAirmass(self.mjd)
+        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        result['clouds'] = self.cloud_model.get_cloud(delta_t)
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
-            delta_t = (self.mjd-self.mjd_start)*24.*3600.
             fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
                                                                                           result['airmass'])
             result['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
@@ -189,6 +215,13 @@ class Speed_observatory(object):
         """
         If an mjd is not in daytime or downtime
         """
+
+        # Check if it it too cloudy
+        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        cloud = self.cloud_model.get_cloud(delta_t)
+        if cloud >= self.cloud_limit:
+            mjd += self.cloud_step
+            return False, mjd
 
         # Check if self.sky.info has night info, otherwise add it.
         if 'night' not in self.sky.info.keys():
@@ -257,7 +290,7 @@ class Speed_observatory(object):
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
-            observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=hpid,
+            observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=[hpid],
                                                                extrapolate=True)[self.filtername]
             observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
             observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
@@ -269,7 +302,7 @@ class Speed_observatory(object):
                                                         observation['airmass'])
             observation['alt'] = alt
             observation['az'] = az
-
+            observation['clouds'] = self.status['clouds']
             self.set_mjd(self.mjd + total_time - (ft + st)*sec2days)
 
             return observation
