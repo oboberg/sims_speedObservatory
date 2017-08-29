@@ -195,8 +195,9 @@ class Speed_observatory(object):
         result['skybrightness'] = self.sky.returnMags(self.mjd)
         result['slewtimes'] = self.slewtime_map()
         result['airmass'] = self.sky.returnAirmass(self.mjd)
+        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        result['clouds'] = self.cloud_model.get_cloud(delta_t)
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
-            delta_t = (self.mjd-self.mjd_start)*24.*3600.
             fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
                                                                                           result['airmass'])
             result['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
@@ -289,7 +290,7 @@ class Speed_observatory(object):
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
-            observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=hpid,
+            observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=[hpid],
                                                                extrapolate=True)[self.filtername]
             observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
             observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
@@ -301,7 +302,7 @@ class Speed_observatory(object):
                                                         observation['airmass'])
             observation['alt'] = alt
             observation['az'] = az
-
+            observation['clouds'] = self.status['clouds']
             self.set_mjd(self.mjd + total_time - (ft + st)*sec2days)
 
             return observation
