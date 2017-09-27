@@ -283,7 +283,8 @@ class Speed_observatory(object):
 
             observation['night'] = self.night
             # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
-            observation['slewtime'] = ft+st+rt
+            # XXX--removing that so I may not be using the same convention as opsim.
+            observation['slewtime'] = ft+st
 
             self.ra = observation['RA']
             self.dec = observation['dec']
