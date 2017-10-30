@@ -208,6 +208,10 @@ class Speed_observatory(object):
         result['next_twilight_start'] = self.next_twilight_start(self.mjd)
         result['next_twilight_end'] = self.next_twilight_end(self.mjd)
         result['last_twilight_end'] = self.last_twilight_end(self.mjd)
+        sunMoon_info = self.sky.returnSunMoon(self.mjd)
+        # Pretty sure these are radians
+        result['sunAlt'] = np.max(sunMoon_info['sunAlt'])
+        result['moonAlt'] = np.max(sunMoon_info['moonAlt'])
         self.status = result
         return result
 
@@ -277,6 +281,9 @@ class Speed_observatory(object):
             # This should be the start of the exposure.
             observation['mjd'] = self.mjd + (ft + st)*sec2days
             self.set_mjd(self.mjd + (ft + st)*sec2days)
+            self.ra = observation['RA']
+            self.dec = observation['dec']
+
             if update_status:
                 # What's the name for temp variables?
                 status = self.return_status()
@@ -285,9 +292,6 @@ class Speed_observatory(object):
             # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
             # XXX--removing that so I may not be using the same convention as opsim.
             observation['slewtime'] = ft+st
-
-            self.ra = observation['RA']
-            self.dec = observation['dec']
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
@@ -304,6 +308,8 @@ class Speed_observatory(object):
             observation['alt'] = alt
             observation['az'] = az
             observation['clouds'] = self.status['clouds']
+            observation['sunAlt'] = self.status['sunAlt']
+            observation['moonAlt'] = self.status['moonAlt']
             self.set_mjd(self.mjd + total_time - (ft + st)*sec2days)
 
             return observation
