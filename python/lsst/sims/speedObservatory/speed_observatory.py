@@ -157,23 +157,10 @@ class Speed_observatory(object):
         If an mjd is not in daytime or downtime
         """
 
-        # Check if it it too cloudy
-        delta_t = (self.mjd-self.mjd_start)*24.*3600.
-        cloud = self.cloud_model.get_cloud(delta_t)
-        if cloud >= self.cloud_limit:
-            mjd += self.cloud_step
-            return False, mjd
-
-        # Check if self.sky.info has night info, otherwise add it.
-        if 'night' not in self.sky.info.keys():
-            self.sky.info['night'] = self.mjd2night(self.sky.info['mjds'])
-            self.good_nights = np.in1d(self.sky.info['night'], self.down_nights, invert=True)
-
         # Check if sun is up
         sunMoon = self.sky.returnSunMoon(mjd)
-        if (sunMoon['sunAlt'] > self.sun_limit) | (self.mjd2night(mjd) in self.down_nights):
-            good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit) &
-                            (self.good_nights))[0]
+        if (sunMoon['sunAlt'] > self.sun_limit):
+            good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit))[0]
             if np.size(good) == 0:
                 # hack to advance if we are at the end of the mjd list I think
                 mjd += 0.25
@@ -234,8 +221,8 @@ class Speed_observatory(object):
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
             observation['skybrightness'] = self.sky.returnMags(observation['mjd'], indx=[hpid],
                                                                extrapolate=True)[self.filtername]
-            observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername][hpid]
-            observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername][hpid]
+            observation['FWHMeff'] = self.status['FWHMeff_%s' % self.filtername]
+            observation['FWHM_geometric'] = self.status['FWHM_geometric_%s' % self.filtername]
             observation['airmass'] = self.status['airmass'][hpid]
             observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0],
                                                         observation['skybrightness'],
