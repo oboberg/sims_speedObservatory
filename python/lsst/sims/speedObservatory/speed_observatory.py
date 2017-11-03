@@ -7,10 +7,6 @@ import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
-from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
-from lsst.sims.ocs.environment import SeeingModel, CloudModel
-from lsst.sims.ocs.configuration import Environment
-from lsst.sims.ocs.configuration.instrument import Filters
 from lsst.sims.utils import m5_flat_sed
 
 __all__ = ['Speed_observatory']
@@ -19,41 +15,6 @@ __all__ = ['Speed_observatory']
 sec2days = 1./(3600.*24.)
 default_nside = utils.set_default_nside()
 doff = ephem.Date(0)-ephem.Date('1858/11/17')
-
-
-class SeeingModel_no_time(SeeingModel):
-    """Eliminate the need to use a time_handler object
-    """
-    def __init__(self, offset=0.):
-        """
-        Parameters
-        ----------
-        offset : float
-            XXX-I don't even know the units on this. Days maybe?
-        """
-        self.seeing_db = None
-        self.seeing_dates = None
-        self.seeing_values = None
-        self.environment_config = None
-        self.filters_config = None
-        self.seeing_fwhm_system_zenith = None
-        self.offset = offset
-
-
-class CloudModel_no_time(CloudModel):
-    """Eliminate the need to use a time_handler object
-    """
-    def __init__(self, offset=0.):
-        """Initialize the class.
-
-        Parameters
-        ----------
-        offset : float (0.)
-        """
-        self.cloud_db = None
-        self.cloud_dates = None
-        self.cloud_values = None
-        self.offset = offset
 
 
 class Speed_observatory(object):
@@ -129,29 +90,6 @@ class Speed_observatory(object):
         # Make a slewtime interpolator
         self.slew_interp = Slewtime_pre()
 
-        # Compute downtimes
-        self.down_nights = []
-        sdt = ScheduledDowntime()
-        sdt.initialize()
-        usdt = UnscheduledDowntime()
-        usdt.initialize(random_seed=seed)
-        for downtime in sdt.downtimes:
-            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
-        for downtime in usdt.downtimes:
-            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
-        self.down_nights.sort()
-
-        # Instatiate a seeing model
-        env_config = Environment()
-        filter_config = Filters()
-        self.seeing_model = SeeingModel_no_time()
-        self.seeing_model.initialize(env_config, filter_config)
-
-        self.cloud_model = CloudModel_no_time()
-        self.cloud_model.initialize()
-        self.cloud_limit = cloud_limit
-        self.cloud_step = cloud_step /60./24.
-
     def slew_time(self, alt, az, mintime=2.):
         """
         Compute slew time to new ra, dec position
@@ -196,10 +134,9 @@ class Speed_observatory(object):
         result['slewtimes'] = self.slewtime_map()
         result['airmass'] = self.sky.returnAirmass(self.mjd)
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
-        result['clouds'] = self.cloud_model.get_cloud(delta_t)
+        result['clouds'] = 0.
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
-            fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
-                                                                                          result['airmass'])
+            fwhm_500, fwhm_geometric, fwhm_effective = (0.7, 0.7, 0.7)
             result['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
             result['FWHM_geometric_%s' % filtername] = fwhm_geometric
         result['filter'] = self.filtername
