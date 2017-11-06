@@ -1,17 +1,29 @@
 from builtins import zip
 from builtins import object
 import numpy as np
+import logging
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
-from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
-from lsst.sims.ocs.environment import SeeingModel, CloudModel
-from lsst.sims.ocs.configuration import Environment
-from lsst.sims.ocs.configuration.instrument import Filters
 from lsst.sims.utils import m5_flat_sed
+
+log = logging.getLogger(__name__)
+
+try:
+    from lsst.sims.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
+    from lsst.sims.ocs.environment import SeeingModel, CloudModel
+    from lsst.sims.ocs.configuration import Environment
+    from lsst.sims.ocs.configuration.instrument import Filters
+except Exception as e:
+    log.exception(e)
+    log.warning('No sims.ocs, using self ocs module.')
+    from lsst.sims.speedObservatory.ocs.downtime import ScheduledDowntime, UnscheduledDowntime
+    from lsst.sims.speedObservatory.ocs.environment import SeeingModel, CloudModel
+    from lsst.sims.speedObservatory.ocs.configuration import Environment
+    from lsst.sims.speedObservatory.ocs.configuration.instrument import Filters
 
 __all__ = ['Speed_observatory']
 
