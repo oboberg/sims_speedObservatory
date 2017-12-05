@@ -64,7 +64,7 @@ class Speed_observatory(object):
     def __init__(self, mjd_start=59580.035,
                  readtime=2., filtername=None, f_change_time=140.,
                  nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
-                 seed=-1, cloud_limit=.7, cloud_step=15.):
+                 seed=-1, cloud_limit=.699, cloud_step=15.):
         """
         Parameters
         ----------
@@ -86,8 +86,8 @@ class Speed_observatory(object):
             Load only a small pre-computed sky array rather than a full year.
         seed : float
             Random seed to potentially pass to unscheduled downtime
-        cloud_limit : float (7)
-            Close dome for cloud values over this (traditionally measured in 8ths of the sky)
+        cloud_limit : float (0.699)
+            Close dome for cloud values over this (traditionally measured in 8ths of the sky?)
         cloud_step : float (15.)
             Minutes to close if clouds exceed cloud_limit
         """
