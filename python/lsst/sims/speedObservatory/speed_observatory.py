@@ -64,7 +64,7 @@ class Speed_observatory(object):
     def __init__(self, mjd_start=59580.035,
                  readtime=2., filtername=None, f_change_time=140.,
                  nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
-                 seed=-1, cloud_limit=7., cloud_step=15.):
+                 seed=-1, cloud_limit=.7, cloud_step=15.):
         """
         Parameters
         ----------
