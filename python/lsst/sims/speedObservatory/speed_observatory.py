@@ -9,6 +9,7 @@ import lsst.sims.featureScheduler.utils as utils
 import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
 from lsst.sims.utils import m5_flat_sed
+from . import version
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +82,9 @@ class Speed_observatory(object):
         filters : Filters (None)
             The Filters interface. If None (default) use sims_ocs module.
         """
+        # Make it easy to see what version the object is
+        self.version = version
+
         self.mjd_start = mjd_start + 0
         self.mjd = mjd_start
         self.f_change_time = f_change_time
