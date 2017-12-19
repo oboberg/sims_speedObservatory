@@ -35,7 +35,7 @@ class Speed_observatory(object):
     current conditions.
     """
     def __init__(self, mjd_start=59580.035,
-                 readtime=2., filtername=None, f_change_time=140.,
+                 readtime=2., filtername=None, f_change_time=140., shutter_time=1., 
                  nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
                  seed=-1, cloud_limit=0.699, cloud_step=15.,
                  scheduled_downtime=None, unscheduled_downtime=None,
@@ -54,6 +54,8 @@ class Speed_observatory(object):
             The filter to start the observatory loaded with
         f_change_time : float (120.)
             The time it takes to change filters (seconds)
+        shutter_time : float (1.)
+            The time it takes to open or close the shutter.
         nside : int (32)
             The healpixel nside to make sky calculations on.
         sun_limit : float (-12.)
@@ -83,6 +85,7 @@ class Speed_observatory(object):
         self.mjd = mjd_start
         self.f_change_time = f_change_time
         self.readtime = readtime
+        self.shutter_time = shutter_time
         self.sun_limit = np.radians(sun_limit)
         self.alt_limit = np.radians(alt_limit)
         # Load up the sky brightness model
@@ -244,7 +247,12 @@ class Speed_observatory(object):
             self.good_nights = np.in1d(self.sky.info['night'], self.down_nights, invert=True)
 
         # Check if sun is up
-        sunMoon = self.sky.returnSunMoon(mjd)
+        #sunMoon = self.sky.returnSunMoon(mjd)
+        # Switch to using ephem in case there are problems with the pre-computed.
+        self.obs.date = mjd - doff
+        self.sun.compute(self.obs)
+        sunMoon={}
+        sunMoon['sunAlt'] = self.sun.alt
         if (sunMoon['sunAlt'] > self.sun_limit) | (self.mjd2night(mjd) in self.down_nights):
             good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit) &
                             (self.good_nights))[0]
@@ -280,7 +288,8 @@ class Speed_observatory(object):
         # Assume we can slew while reading the last exposure
         # So, filter change time, slew to target time, expose time, read time
         rt = (observation['nexp']-1.)*self.readtime
-        total_time = (ft + st + observation['exptime'] + rt)*sec2days
+        shutter_time = self.shutter_time*observation['nexp']/2.
+        total_time = (ft + st + observation['exptime'] + rt + shutter_time)*sec2days
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
             # XXX--major decision here, should the status be updated after every observation? Or just assume
@@ -321,6 +330,7 @@ class Speed_observatory(object):
             observation['clouds'] = self.status['clouds']
             observation['sunAlt'] = self.status['sunAlt']
             observation['moonAlt'] = self.status['moonAlt']
+            # We had advanced the slew and filter change, so subtract that off and add the total visit time.
             self.set_mjd(self.mjd + total_time - (ft + st)*sec2days)
 
             return observation
