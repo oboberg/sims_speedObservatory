@@ -289,10 +289,11 @@ class Speed_observatory(object):
             st = 0.
             ft = 0.
 
-        # Assume we can slew while reading the last exposure
+        # Assume we can slew while reading the last exposure (note that slewtime calc gives 2 as a minimum. So this 
+        # will not fail for DD fields, etc.)
         # So, filter change time, slew to target time, expose time, read time
         rt = (observation['nexp']-1.)*self.readtime
-        shutter_time = self.shutter_time*observation['nexp']/2.
+        shutter_time = self.shutter_time*observation['nexp']
         total_time = (ft + st + observation['exptime'] + rt + shutter_time)*sec2days
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
