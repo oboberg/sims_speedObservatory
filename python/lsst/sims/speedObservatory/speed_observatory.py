@@ -265,6 +265,7 @@ class Speed_observatory(object):
                 mjd += 0.25
             else:
                 mjd = self.sky.info['mjds'][good][0]
+            print ('SunAlt: %.2f (limit: %.2f)' % (np.degrees(sunMoon['sunAlt']), np.degrees(self.sun_limit)))
             return False, mjd
         else:
             return True, mjd
@@ -279,9 +280,10 @@ class Speed_observatory(object):
                                                np.array([observation['dec']]),
                                                self.obs.lat, self.obs.lon, self.mjd)
         if self.ra is not None:
-            if self.filtername != observation['filter']:
+            if self.filtername != observation['filter'][0]:
                 ft = self.f_change_time
                 st = 0.
+                # print(self.filtername, observation['filter'][0])
             else:
                 ft = 0.
                 st = self.slew_time(alt, az)
@@ -316,6 +318,7 @@ class Speed_observatory(object):
             observation['night'] = self.night
             # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
             # XXX--removing that so I may not be using the same convention as opsim.
+            # print(ft+st, ft, st, observation['filter'][0])
             observation['slewtime'] = ft+st
 
             self.filtername = observation['filter'][0]
@@ -340,6 +343,7 @@ class Speed_observatory(object):
 
             return observation
         else:
+            print('MJD (%f) out of range...' % self.mjd)
             self.mjd = jump_mjd
             self.night = self.mjd2night(self.mjd)
             self.ra = None
