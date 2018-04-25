@@ -240,14 +240,13 @@ class Speed_observatory(object):
         result['moonRA'] = np.max(sunMoon_info['moonRA'])
         result['moonDec'] = np.max(sunMoon_info['moonDec'])
 
-        # Calculate moonAz if it is above the horizon
-        if result['moonAlt'] > 0:
-            moon_alt, moon_az = utils.stupidFast_RaDec2AltAz(np.array(result['moonRA'])*np.ones(2),
-                                                             np.array(result['moonDec'])*np.ones(2),
-                                                             self.obs.lat, self.obs.lon, self.mjd)
-            result['moonAz'] = moon_az[0]
-        else:
-            result['moonAz'] = 0.0
+        # Calculate moonAz
+        moon_alt, moon_az = utils.stupidFast_RaDec2AltAz(np.array([result['moonRA']]),
+                                                         np.array([result['moonDec']]),
+                                                         self.obs.lat, self.obs.lon, self.mjd)
+        result['moonAz'] = moon_az[0]
+
+        #Get moonPhase
         result['moonPhase'] = sky.phaseOfMoon(delta_t)
 
         self.status = result
