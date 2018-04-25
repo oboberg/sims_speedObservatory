@@ -2,7 +2,7 @@ from builtins import zip
 from builtins import object
 import numpy as np
 import logging
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, TimeHandler
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
@@ -10,7 +10,6 @@ import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
 from lsst.sims.utils import m5_flat_sed
 from . import version
-from . import time_handler_copy as tc
 from . import sky as sky
 
 log = logging.getLogger(__name__)
@@ -92,8 +91,8 @@ class Speed_observatory(object):
         self.mjd_start = mjd_start + 0
         self.mjd = mjd_start
 
-        # Make time_handler object from time_handler_copy.py
-        self.TimeHandler = tc.TimeHandler('2022-10-01')
+        # Make time_handler object
+        self.TimeHandler = TimeHandler('2022-10-01')
 
         self.f_change_time = f_change_time
         self.readtime = readtime
@@ -164,21 +163,16 @@ class Speed_observatory(object):
         else:
             filter_config = Filters()
 
-        # if seeing_model is not None:
-            # self.seeing_model = seeing_model
-        # else:
-            # self.seeing_model = SeeingModel_no_time()
-        # self.seeing_model.initialize(env_config, filter_config)
-
-        self.seeingSim = SeeingSim(self.TimeHandler)
+        if seeing_model is not None:
+            self.seeingSim = seeing_model
+        else:
+            self.seeingSim = SeeingSim(self.TimeHandler)
 
         if cloud_model is not None:
             self.cloud_model = cloud_model
         else:
-            # Note the CloudModel_no_time() does work without
-            # needing a TimeHandler object.
-            # self.cloud_model = CloudModel_no_time()
             self.cloud_model = CloudModel(self.TimeHandler)
+
         self.cloud_model.read_data()
         self.cloud_limit = cloud_limit
         self.cloud_step = cloud_step/60./24.
