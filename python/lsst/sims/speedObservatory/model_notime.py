@@ -1,7 +1,12 @@
-from lsst.sims.ocs.environment import SeeingModel, CloudModel
+from lsst.sims.seeingModel import SeeingModel, SeeingSim, SeeingData
+from lsst.sims.cloudModel import CloudModel
 
-class SeeingModel_no_time(SeeingModel):
+class SeeingModel_no_time(SeeingSim):
     """Eliminate the need to use a time_handler object
+
+    XXX I could not get the new seeing model to work without have a time_handler
+    object. I copied the time_handler_copy.py from seeingModel to the speed
+    observatory so it can be used.
     """
     def __init__(self, offset=0.):
         """
@@ -11,12 +16,14 @@ class SeeingModel_no_time(SeeingModel):
             XXX-I don't even know the units on this. Days maybe?
         """
         self.seeing_db = None
+        self.seeing_data = None
         self.seeing_dates = None
         self.seeing_values = None
         self.environment_config = None
         self.filters_config = None
         self.seeing_fwhm_system_zenith = None
         self.offset = offset
+        # self.delta_time = offset
         self.filter_wavelength_correction = {}
 
 
@@ -34,3 +41,4 @@ class CloudModel_no_time(CloudModel):
         self.cloud_dates = None
         self.cloud_values = None
         self.offset = offset
+        self.delta_time = offset

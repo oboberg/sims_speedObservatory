@@ -5,8 +5,8 @@ import ephem
 from datetime import datetime
 from datetime import timedelta
 import numbers
-import utils
-from telescope import Telescope
+from . import utils
+from . telescope import Telescope
 
 import palpy
 

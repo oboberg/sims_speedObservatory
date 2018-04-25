@@ -10,6 +10,8 @@ import ephem
 from lsst.sims.speedObservatory.slew_pre import Slewtime_pre
 from lsst.sims.utils import m5_flat_sed
 from . import version
+from . import time_handler_copy as tc
+from . import sky as sky
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +20,8 @@ try:
     from lsst.sims.ocs.configuration import Environment
     from lsst.sims.ocs.configuration.instrument import Filters
     from lsst.sims.speedObservatory.model_notime import SeeingModel_no_time, CloudModel_no_time
+    from lsst.sims.seeingModel import SeeingModel, SeeingSim, SeeingData
+    from lsst.sims.cloudModel import CloudModel
 except Exception as e:
     log.exception(e)
     log.warning('No sims.ocs. To use Speed_observatory provide ScheduledDowntime, '
@@ -36,7 +40,7 @@ class Speed_observatory(object):
     current conditions.
     """
     def __init__(self, mjd_start=59580.035,
-                 readtime=2., filtername=None, f_change_time=140., shutter_time=1., 
+                 readtime=2., filtername=None, f_change_time=140., shutter_time=1.,
                  nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.,
                  seed=-1, cloud_limit=0.699, cloud_step=15.,
                  scheduled_downtime=None, unscheduled_downtime=None,
@@ -87,6 +91,10 @@ class Speed_observatory(object):
 
         self.mjd_start = mjd_start + 0
         self.mjd = mjd_start
+
+        # Make time_handler object from time_handler_copy.py
+        self.TimeHandler = tc.TimeHandler('2022-10-01')
+
         self.f_change_time = f_change_time
         self.readtime = readtime
         self.shutter_time = shutter_time
@@ -156,17 +164,22 @@ class Speed_observatory(object):
         else:
             filter_config = Filters()
 
-        if seeing_model is not None:
-            self.seeing_model = seeing_model
-        else:
-            self.seeing_model = SeeingModel_no_time()
-        self.seeing_model.initialize(env_config, filter_config)
+        # if seeing_model is not None:
+            # self.seeing_model = seeing_model
+        # else:
+            # self.seeing_model = SeeingModel_no_time()
+        # self.seeing_model.initialize(env_config, filter_config)
+
+        self.seeingSim = SeeingSim(self.TimeHandler)
 
         if cloud_model is not None:
             self.cloud_model = cloud_model
         else:
-            self.cloud_model = CloudModel_no_time()
-        self.cloud_model.initialize()
+            # Note the CloudModel_no_time() does work without
+            # needing a TimeHandler object.
+            # self.cloud_model = CloudModel_no_time()
+            self.cloud_model = CloudModel(self.TimeHandler)
+        self.cloud_model.read_data()
         self.cloud_limit = cloud_limit
         self.cloud_step = cloud_step/60./24.
 
@@ -216,8 +229,8 @@ class Speed_observatory(object):
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
         result['clouds'] = self.cloud_model.get_cloud(delta_t)
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
-            fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
-                                                                                          result['airmass'])
+            fwhm_500, fwhm_geometric, fwhm_effective = self.seeingSim.get_seeing_singlefilter(delta_t, filtername,
+                                                                                              result['airmass'])
             result['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
             result['FWHM_geometric_%s' % filtername] = fwhm_geometric
         result['filter'] = self.filtername
@@ -230,6 +243,19 @@ class Speed_observatory(object):
         # Pretty sure these are radians
         result['sunAlt'] = np.max(sunMoon_info['sunAlt'])
         result['moonAlt'] = np.max(sunMoon_info['moonAlt'])
+        result['moonRA'] = np.max(sunMoon_info['moonRA'])
+        result['moonDec'] = np.max(sunMoon_info['moonDec'])
+
+        # Calculate moonAz if it is above the horizon
+        if result['moonAlt'] > 0:
+            moon_alt, moon_az = utils.stupidFast_RaDec2AltAz(np.array(result['moonRA'])*np.ones(2),
+                                                             np.array(result['moonDec'])*np.ones(2),
+                                                             self.obs.lat, self.obs.lon, self.mjd)
+            result['moonAz'] = moon_az[0]
+        else:
+            result['moonAz'] = 0.0
+        result['moonPhase'] = sky.phaseOfMoon(delta_t)
+
         self.status = result
         return result
 
@@ -291,7 +317,7 @@ class Speed_observatory(object):
             st = 0.
             ft = 0.
 
-        # Assume we can slew while reading the last exposure (note that slewtime calc gives 2 as a minimum. So this 
+        # Assume we can slew while reading the last exposure (note that slewtime calc gives 2 as a minimum. So this
         # will not fail for DD fields, etc.)
         # So, filter change time, slew to target time, expose time, read time
         rt = (observation['nexp']-1.)*self.readtime
@@ -412,4 +438,3 @@ class Speed_observatory(object):
         """
         self.mjd = mjd
         self.night = self.mjd2night(mjd)
-
